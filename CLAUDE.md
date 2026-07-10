@@ -10,7 +10,13 @@ V1 hat **genau drei Features**, sonst nichts:
 2. **Harte Deckelung** — max. 3 Aufgaben von Inbox auf „Heute"; UI verhindert die vierte, ein DB-Trigger sichert es zusätzlich ab.
 3. **Web-Push** — 07:00 „Wähle deine 3" und 21:30 „Was ist offen?" (Europe/Berlin, fest), funktionsfähig als installierte PWA auf iOS 16.4+.
 
-**Keine weiteren Features vorschlagen oder einbauen** — keine Tags, Prioritäten, Unteraufgaben, Fälligkeitsdaten, Statistiken, Themes o. Ä. Wenn eine Änderung nicht direkt einem der drei Features (oder Stabilität/Barrierefreiheit) dient, gehört sie nicht in V1. Weniger ist hier das Produkt.
+**Keine weiteren Features vorschlagen oder einbauen** — keine Tags, Prioritäten, Unteraufgaben, Fälligkeitsdaten, Statistiken, Themes o. Ä. Wenn eine Änderung nicht direkt einem der Features (oder Stabilität/Barrierefreiheit) dient, gehört sie nicht rein. Weniger ist hier das Produkt.
+
+## Scope V2 — „Woche" (Kapazitäts-Anzeiger)
+
+Vierter Baustein: Tab **„Woche"** — 7 Spalten Mo–So, Zeitbalken 6:00–24:00, Termine als Blöcke, darunter „X h frei". Zweck: beim Wählen der 3 Heute-Aufgaben sehen, wieviel Zeit realistisch frei ist. **Kein Kalender-Ersatz.**
+
+Regeln: Termine haben nur Titel, Wochentag/Datum, Von/Bis und „wöchentlich wiederholen" (unbegrenzt, kein Enddatum). Einmalige hängen an konkretem Datum. Nur aktuelle Woche, kein Blättern. Keine Kategorien, Farben, Erinnerungen, Notizen, Vorschläge, Templates oder Auto-Einträge — das leere Raster ist Absicht.
 
 Getroffene Produktentscheidungen:
 - Multi-User mit Supabase Auth (Magic Link), RLS pro Nutzer.
@@ -34,14 +40,15 @@ fokus3/
 ├─ vite.config.ts                      # base-Pfad + vite-plugin-pwa (injectManifest)
 ├─ public/icons/                       # 192, 512, maskable, apple-touch-icon
 ├─ src/
-│  ├─ main.tsx · App.tsx · index.css
+│  ├─ main.tsx · App.tsx (Tab-State) · index.css
 │  ├─ sw.ts                            # Service Worker (Push-Empfang)
-│  ├─ lib/                             # supabaseClient.ts · push.ts · tasks.ts
-│  ├─ hooks/                           # useAuth.ts · useTasks.ts
-│  ├─ pages/                           # Login.tsx · Home.tsx
+│  ├─ lib/                             # supabaseClient.ts · push.ts · tasks.ts · appointments.ts
+│  ├─ hooks/                           # useTasks.ts · useAppointments.ts
+│  ├─ pages/                           # Home.tsx (Heute+Inbox) · Week.tsx
 │  └─ components/                      # QuickCapture · Inbox · TodayList · TaskItem · NotificationSetup
+│                                      # TabBar · WeekDayColumn · AppointmentModal · Toast · PushTest
 └─ supabase/
-   ├─ migrations/                      # 0001_schema · 0002_rls · 0003_cap_trigger · 0004_cron
+   ├─ migrations/                      # 0001_schema · 0002_push · 0003_appointments (append-only)
    └─ functions/send-reminders/        # Reset + Push-Versand, DST-aware
 ```
 
