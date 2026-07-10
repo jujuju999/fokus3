@@ -3,6 +3,7 @@ import QuickCapture from '../components/QuickCapture'
 import TodayList from '../components/TodayList'
 import Inbox from '../components/Inbox'
 import NotificationSetup from '../components/NotificationSetup'
+import PushTest from '../components/PushTest'
 import Toast from '../components/Toast'
 
 export default function Home() {
@@ -54,6 +55,8 @@ export default function Home() {
         )}
 
         <NotificationSetup />
+
+        <PushTest />
       </main>
 
       <Toast message={toast} />

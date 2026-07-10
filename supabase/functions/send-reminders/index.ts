@@ -6,7 +6,8 @@
 // Windows: [07:00, 07:30) -> morning, [21:30, 22:00) -> evening. The
 // notification_log table dedupes to one send per slot and Berlin day.
 // Manual testing: POST {"force":"morning"|"evening"} bypasses the time
-// window (but not the dedupe).
+// window (but not the dedupe); {"test":"morning"|"evening"} additionally
+// skips dedupe + day reset and prefixes the title with "Test:".
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
@@ -16,6 +17,20 @@ interface PushSubscriptionRow {
   endpoint: string
   p256dh: string
   auth: string
+}
+
+// CORS: the dev test panel calls this function from the browser
+// (supabase.functions.invoke), which sends an OPTIONS preflight first.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
 }
 
 function berlinNow(): { date: string; minutes: number } {
@@ -37,6 +52,10 @@ function berlinNow(): { date: string; minutes: number } {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -46,7 +65,7 @@ Deno.serve(async (req) => {
   const { data: cfgRows, error: cfgError } = await supabase.from('app_config').select('key, value')
   const cfg = Object.fromEntries((cfgRows ?? []).map((r) => [r.key, r.value]))
   if (cfgError || !cfg.vapid_public_key || !cfg.vapid_private_key || !cfg.vapid_subject) {
-    return Response.json({ error: 'VAPID config missing in app_config' }, { status: 500 })
+    return json({ error: 'VAPID config missing in app_config' }, 500)
   }
   webpush.setVapidDetails(cfg.vapid_subject, cfg.vapid_public_key, cfg.vapid_private_key)
 
@@ -59,22 +78,29 @@ Deno.serve(async (req) => {
         : null
 
   const body = await req.json().catch(() => ({}))
-  if (body?.force === 'morning' || body?.force === 'evening') slot = body.force
+  // Test mode (dev button in the app): {"test":"morning"|"evening"} sends
+  // immediately but skips the dedupe log and the day reset — a test at 18:00
+  // must never swallow the real 21:30 send.
+  const isTest = body?.test === 'morning' || body?.test === 'evening'
+  if (isTest) slot = body.test
+  else if (body?.force === 'morning' || body?.force === 'evening') slot = body.force
 
   if (!slot) {
-    return Response.json({ sent: 0, skipped: 'outside notification windows' })
+    return json({ sent: 0, skipped: 'outside notification windows' })
   }
 
-  // Dedupe: the first insert for (slot, date) wins; a retry exits here.
-  const { error: logError } = await supabase
-    .from('notification_log')
-    .insert({ type: slot, sent_date: date })
-  if (logError) {
-    return Response.json({ sent: 0, skipped: `already sent (${slot} ${date})` })
+  if (!isTest) {
+    // Dedupe: the first insert for (slot, date) wins; a retry exits here.
+    const { error: logError } = await supabase
+      .from('notification_log')
+      .insert({ type: slot, sent_date: date })
+    if (logError) {
+      return json({ sent: 0, skipped: `already sent (${slot} ${date})` })
+    }
   }
 
   // Morning batch doubles as day reset: stale "Heute" tasks return to the inbox.
-  if (slot === 'morning') {
+  if (slot === 'morning' && !isTest) {
     await supabase
       .from('tasks')
       .update({ status: 'inbox', planned_date: null })
@@ -99,6 +125,7 @@ Deno.serve(async (req) => {
   let title: string
   let text: string
   if (slot === 'morning') {
+    // (test sends get a "Test:" prefix below so they're recognizable)
     title = 'Wähle deine 3'
     text =
       (inboxCount ?? 0) > 0
@@ -114,6 +141,8 @@ Deno.serve(async (req) => {
       text = 'Heute war nichts geplant. Morgen früh wählst du neu.'
     }
   }
+
+  if (isTest) title = `Test: ${title}`
 
   const { data: subs } = await supabase.from('push_subscriptions').select('*')
   const payload = JSON.stringify({ title, body: text })
@@ -139,5 +168,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return Response.json({ slot, date, sent, removed, subscriptions: subs?.length ?? 0 })
+  return json({ slot, date, sent, removed, subscriptions: subs?.length ?? 0 })
 })

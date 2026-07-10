@@ -45,3 +45,21 @@ export async function subscribeToPush(): Promise<void> {
     )
   if (error) throw new Error(error.message)
 }
+
+export interface TestPushResult {
+  sent: number
+  subscriptions: number
+}
+
+/**
+ * Dev-only (PushTest component): triggers send-reminders immediately in test
+ * mode — real payload to every subscribed device, but without touching the
+ * dedupe log, so the next scheduled 07:00/21:30 send still goes out.
+ */
+export async function sendTestPush(slot: 'morning' | 'evening'): Promise<TestPushResult> {
+  const { data, error } = await getSupabase().functions.invoke('send-reminders', {
+    body: { test: slot },
+  })
+  if (error) throw new Error(error.message)
+  return data as TestPushResult
+}
