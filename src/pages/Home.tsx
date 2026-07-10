@@ -25,7 +25,7 @@ export default function Home() {
 
   return (
     <div className="min-h-dvh bg-neutral-50">
-      <main className="mx-auto flex max-w-md flex-col gap-8 px-4 pb-16 pt-8">
+      <main className="mx-auto flex max-w-md flex-col gap-8 px-4 pb-24 pt-8">
         <header>
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Fokus3</h1>
         </header>
