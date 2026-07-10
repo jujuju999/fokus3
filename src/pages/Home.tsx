@@ -5,6 +5,7 @@ import Inbox from '../components/Inbox'
 import NotificationSetup from '../components/NotificationSetup'
 import PushTest from '../components/PushTest'
 import Toast from '../components/Toast'
+import { signOut } from '../lib/auth'
 
 export default function Home() {
   const {
@@ -57,6 +58,14 @@ export default function Home() {
         <NotificationSetup />
 
         <PushTest />
+
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="mx-auto text-xs text-neutral-400 transition-colors hover:text-neutral-600"
+        >
+          Abmelden
+        </button>
       </main>
 
       <Toast message={toast} />
