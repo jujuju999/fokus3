@@ -19,7 +19,7 @@ Vierter Baustein: Tab **„Woche"** — 7 Spalten Mo–So, Zeitbalken 6:00–24:
 Regeln: Termine haben nur Titel, Wochentag/Datum, Von/Bis und „wöchentlich wiederholen" (unbegrenzt, kein Enddatum). Einmalige hängen an konkretem Datum. Nur aktuelle Woche, kein Blättern. Keine Kategorien, Farben, Erinnerungen, Notizen, Vorschläge, Templates oder Auto-Einträge — das leere Raster ist Absicht.
 
 Getroffene Produktentscheidungen:
-- Multi-User mit Supabase Auth (Magic Link), RLS pro Nutzer.
+- Multi-User mit Supabase Auth (E-Mail + Passwort; Magic Link/OTP scheiterte an iOS-PWA-Speichertrennung bzw. SMTP-Pflicht für Template-Anpassung), RLS pro Nutzer.
 - Zeitzone fest `Europe/Berlin` (DST-sicher via 30-Min-Cron + Wanduhrzeit-Check in der Edge Function).
 - Tageswechsel: unerledigte „Heute"-Tasks wandern zurück in die Inbox (frischer Start).
 

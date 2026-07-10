@@ -1,24 +1,25 @@
 import { getSupabase } from './supabaseClient'
 
 /**
- * Login is code-based (email OTP), NOT magic-link-based, on purpose:
- * installed PWAs on iOS have storage separate from Safari, so a clicked
- * magic link would create the session in Safari while the installed app
- * stays logged out. Typing the 6-digit code inside the PWA avoids that
- * entirely — and needs no redirect-URL configuration either.
- * Requires {{ .Token }} in the Supabase "Magic Link" email template.
+ * Auth is password-based, on purpose:
+ * - Magic links break in installed iOS PWAs (separate storage from Safari:
+ *   a clicked link logs in Safari, the app stays logged out).
+ * - Email OTP codes would work, but Supabase only allows editing the email
+ *   template (to include {{ .Token }}) with custom SMTP — overkill here.
+ * Password login needs neither emails nor redirect URLs at sign-in time.
+ * Requires "Confirm email" to be disabled in the Supabase auth settings.
  */
-export async function sendLoginCode(email: string): Promise<void> {
-  const { error } = await getSupabase().auth.signInWithOtp({ email })
+export async function signUp(email: string, password: string): Promise<void> {
+  const { data, error } = await getSupabase().auth.signUp({ email, password })
   if (error) throw new Error(error.message)
+  // With "Confirm email" still enabled there is no session yet — surface it.
+  if (!data.session) {
+    throw new Error('confirm-email-required')
+  }
 }
 
-export async function verifyLoginCode(email: string, code: string): Promise<void> {
-  const { error } = await getSupabase().auth.verifyOtp({
-    email,
-    token: code,
-    type: 'email',
-  })
+export async function signIn(email: string, password: string): Promise<void> {
+  const { error } = await getSupabase().auth.signInWithPassword({ email, password })
   if (error) throw new Error(error.message)
 }
 
