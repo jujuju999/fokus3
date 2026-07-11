@@ -1,8 +1,16 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute } from 'workbox-precaching'
+import { clientsClaim } from 'workbox-core'
+import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 
 declare let self: ServiceWorkerGlobalScope
 
+// With injectManifest WE own the update lifecycle: without skipWaiting a
+// new service worker stays "waiting" while the old one keeps serving the
+// old precached app — on installed iOS PWAs effectively forever.
+self.skipWaiting()
+clientsClaim()
+
+cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 
 interface PushPayload {
