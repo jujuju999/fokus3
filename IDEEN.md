@@ -5,10 +5,8 @@ den Scope aufzuweichen.
 
 ## Beim V2/Design-Update entstanden (2026-07-12)
 
-- **Wachzeiten über Mitternacht** („Sa 9:00–1:00"): bewusst ausgelassen.
-  Braucht Tageswechsel-Logik in Balken, Terminen und Frei-Berechnung
-  (ein Termin 23:30–0:30 gehört zu zwei Tagen). Aktuell gilt: Fenster
-  innerhalb eines Kalendertags, Ende > Beginn.
+- ~~**Wachzeiten über Mitternacht**~~ → in V2.5 umgesetzt (Ende < Beginn
+  = über Mitternacht; Termine bleiben auf den Kalendertag begrenzt).
 - **Dauer nachträglich ändern**: Chips gibt es nur beim Erfassen. Tap auf
   den Dauer-Chip einer bestehenden Aufgabe könnte ihn editierbar machen.
 - **„Geplant: 2h von 1,5h frei" auf dem Heute-Tab**: die Kapazitäts-Info
@@ -22,3 +20,13 @@ den Scope aufzuweichen.
   Ruhe des UI nicht stört.
 - **Vorschau nächste Woche**: bewusst gegen entschieden (Fokus auf jetzt);
   falls doch, maximal eine Woche voraus, kein freies Blättern.
+
+## Beim V2.5-Bau entstanden (2026-07-11)
+
+- **V2.6 „schlaue" Planung**: Peak-Hours, Energie-Level, Aufgaben-Typen —
+  explizit vertagt, bis V2.5 solide läuft.
+- **Benachrichtigung zum Slot-Start**: eigenes Feature, nicht Teil von V2.5.
+- **Slot per Drag verschieben** statt Sheet mit Zeit-Picker.
+- **Geteilte Daten-Hooks via Context**: aktuell hat jede Seite (+ Scheduler)
+  eigene Hook-Instanzen, die per Realtime konvergieren. Ein DataProvider
+  würde Requests sparen und Zwischenzustände eliminieren.

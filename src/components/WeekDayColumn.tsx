@@ -4,7 +4,17 @@ import {
   minutesToTime,
   type AppointmentOccurrence,
 } from '../lib/appointments'
+import { effectiveWindow } from '../lib/scheduling'
 import type { WakeTime } from '../lib/wakeTimes'
+
+/** Scheduled task rendered as secondary block — display only, never tappable. */
+export interface TaskBlock {
+  id: string
+  title: string
+  startMin: number
+  endMin: number
+  locked: boolean
+}
 
 interface Props {
   label: string
@@ -13,6 +23,7 @@ interface Props {
   /** Waking window of this weekday — the bar renders exactly this range. */
   window: WakeTime
   occurrences: AppointmentOccurrence[]
+  taskBlocks: TaskBlock[]
   onTapEmpty: (startMin: number) => void
   onTapOccurrence: (occ: AppointmentOccurrence) => void
   onAdd: () => void
@@ -24,25 +35,29 @@ export default function WeekDayColumn({
   isToday,
   window: wake,
   occurrences,
+  taskBlocks,
   onTapEmpty,
   onTapOccurrence,
   onAdd,
 }: Props) {
   const dayNumber = Number(dateISO.slice(8, 10))
-  const span = wake.endMin - wake.startMin
-  const ratio = (min: number) => ((min - wake.startMin) / span) * 100
+  const win = effectiveWindow(wake) // endMin may exceed 1440 (past midnight)
+  const span = win.endMin - win.startMin
+  const ratio = (min: number) => ((min - win.startMin) / span) * 100
 
   // compact time scale: a tick every 2 hours, even hours only
   const ticks: number[] = []
-  for (let t = Math.ceil(wake.startMin / 120) * 120; t < wake.endMin; t += 120) {
-    if (t > wake.startMin) ticks.push(t)
+  for (let t = Math.ceil(win.startMin / 120) * 120; t < win.endMin; t += 120) {
+    if (t > win.startMin) ticks.push(t)
   }
 
   function handleBarClick(e: React.MouseEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect()
-    const raw = wake.startMin + ((e.clientY - rect.top) / rect.height) * span
+    const raw = win.startMin + ((e.clientY - rect.top) / rect.height) * span
     const snapped = Math.round(raw / 30) * 30
-    onTapEmpty(Math.min(Math.max(snapped, wake.startMin), wake.endMin - 30))
+    // appointments cannot cross 24:00 — clamp taps in the past-midnight tail
+    const max = Math.min(win.endMin, 1440) - 30
+    onTapEmpty(Math.min(Math.max(snapped, win.startMin), max))
   }
 
   return (
@@ -65,14 +80,14 @@ export default function WeekDayColumn({
               className="absolute right-0 -translate-y-1/2 text-[8px] leading-none text-ink-3"
               style={{ top: `${ratio(t)}%` }}
             >
-              {t / 60}
+              {(t / 60) % 24}
             </span>
           ))}
         </div>
 
         <div
           role="button"
-          aria-label={`Zeitbalken ${label} (${minutesToTime(wake.startMin)}–${minutesToTime(wake.endMin)}) – tippen für neuen Termin`}
+          aria-label={`Zeitbalken ${label} (${minutesToTime(wake.startMin)}–${minutesToTime(wake.endMin % 1440)}) – tippen für neuen Termin`}
           onClick={handleBarClick}
           className={`relative h-80 min-w-0 flex-1 cursor-pointer overflow-hidden rounded-lg border bg-bar-free ${
             isToday ? 'border-accent' : 'border-edge'
@@ -97,15 +112,36 @@ export default function WeekDayColumn({
               aria-label={`Termin „${occ.title}“, ${minutesToTime(occ.startMin)}–${minutesToTime(occ.endMin)}`}
               className="absolute inset-x-0.5 overflow-hidden rounded-md bg-bar-busy px-0.5 text-left text-[9px] leading-tight text-ink transition-colors hover:bg-edge"
               style={{
-                top: `${ratio(Math.max(occ.startMin, wake.startMin))}%`,
+                top: `${ratio(Math.max(occ.startMin, win.startMin))}%`,
                 height: `${
-                  ratio(Math.min(occ.endMin, wake.endMin)) -
-                  ratio(Math.max(occ.startMin, wake.startMin))
+                  ratio(Math.min(occ.endMin, Math.min(win.endMin, 1440))) -
+                  ratio(Math.max(occ.startMin, win.startMin))
                 }%`,
               }}
             >
               {occ.title}
             </button>
+          ))}
+
+          {/* scheduled tasks: secondary blocks, accent, not interactive
+              (editing happens on the Heute card only) */}
+          {taskBlocks.map((tb) => (
+            <div
+              key={tb.id}
+              aria-label={`Geplante Aufgabe „${tb.title}“, ${minutesToTime(tb.startMin % 1440)}–${minutesToTime(tb.endMin % 1440)}`}
+              className={`pointer-events-none absolute inset-x-0.5 overflow-hidden rounded-md border border-accent px-0.5 text-left text-[9px] leading-tight text-accent ${
+                tb.locked ? 'opacity-75' : 'border-dashed opacity-50'
+              }`}
+              style={{
+                top: `${ratio(Math.max(tb.startMin, win.startMin))}%`,
+                height: `${
+                  ratio(Math.min(tb.endMin, win.endMin)) -
+                  ratio(Math.max(tb.startMin, win.startMin))
+                }%`,
+              }}
+            >
+              {tb.title}
+            </div>
           ))}
         </div>
       </div>

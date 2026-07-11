@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { isSupabaseConfigured } from './lib/supabaseClient'
 import { useAuth } from './hooks/useAuth'
+import { useAutoScheduler } from './hooks/useAutoScheduler'
 import SetupNotice from './components/SetupNotice'
 import SegmentedControl, { type Tab } from './components/SegmentedControl'
 import Home from './pages/Home'
@@ -25,10 +26,17 @@ function AuthGate({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => voi
 
   return (
     <div className="min-h-dvh bg-base">
+      <Scheduler />
       <SegmentedControl tab={tab} onChange={onTabChange} />
       {tab === 'heute' && <Home />}
       {tab === 'woche' && <Week />}
       {tab === 'inbox' && <InboxPage />}
     </div>
   )
+}
+
+// Runs the auto-scheduler exactly once, independent of which tab is open.
+function Scheduler() {
+  useAutoScheduler()
+  return null
 }
