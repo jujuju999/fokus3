@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { isSupabaseConfigured } from './lib/supabaseClient'
 import { useAuth } from './hooks/useAuth'
 import SetupNotice from './components/SetupNotice'
-import TabBar, { type Tab } from './components/TabBar'
+import SegmentedControl, { type Tab } from './components/SegmentedControl'
 import Home from './pages/Home'
+import InboxPage from './pages/InboxPage'
 import Login from './pages/Login'
 import Week from './pages/Week'
 
@@ -23,9 +24,11 @@ function AuthGate({ tab, onTabChange }: { tab: Tab; onTabChange: (t: Tab) => voi
   if (!session) return <Login />
 
   return (
-    <>
-      {tab === 'heute' ? <Home /> : <Week />}
-      <TabBar tab={tab} onChange={onTabChange} />
-    </>
+    <div className="min-h-dvh bg-base">
+      <SegmentedControl tab={tab} onChange={onTabChange} />
+      {tab === 'heute' && <Home />}
+      {tab === 'woche' && <Week />}
+      {tab === 'inbox' && <InboxPage />}
+    </div>
   )
 }

@@ -1,1 +1,36 @@
-@import "tailwindcss";
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/space-grotesk';
+@import 'tailwindcss';
+
+/*
+ * ADHS design system: one warm accent, lots of calm, dopamine only where
+ * it matters (progress, completion, today). No rainbow, no confetti.
+ */
+@theme {
+  --color-base: #0a0a0b; /* app background */
+  --color-card: #17171a; /* cards */
+  --color-edge: #26262b; /* borders */
+  --color-ink: #f5f5f7; /* primary text */
+  --color-ink-2: #a1a1a6; /* secondary text */
+  --color-ink-3: #6e6e73; /* tertiary text */
+  --color-accent: #ff6a3d; /* THE accent: active, progress, today, done */
+  --color-warn: #e8a54b; /* muted amber, capacity warning only */
+  --color-bar-free: #1a1a1d; /* week bar: free */
+  --color-bar-busy: #3a3a40; /* week bar: booked */
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-metric: 'Space Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-base);
+  }
+  body {
+    background-color: var(--color-base);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+}

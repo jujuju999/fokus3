@@ -49,7 +49,7 @@ export default function NotificationSetup() {
   switch (state) {
     case 'ios-needs-install':
       return (
-        <p className="rounded-xl bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+        <p className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">
           Für Erinnerungen: Teilen-Menü → <span className="font-medium">„Zum Home-Bildschirm"</span>{' '}
           und Fokus3 von dort öffnen.
         </p>
@@ -58,20 +58,20 @@ export default function NotificationSetup() {
       return null
     case 'active':
       return (
-        <p className="text-center text-xs text-neutral-400">
+        <p className="text-center text-xs text-ink-3">
           Erinnerungen aktiv: 7:00 „Wähle deine 3" · 21:30 „Was ist offen?"
         </p>
       )
     case 'denied':
       return (
-        <p className="rounded-xl bg-neutral-100 px-4 py-3 text-sm text-neutral-500">
+        <p className="rounded-2xl border border-edge bg-card px-4 py-3 text-sm text-ink-2">
           Benachrichtigungen sind blockiert. Du kannst sie in den Browser-Einstellungen wieder
           erlauben.
         </p>
       )
     case 'error':
       return (
-        <p className="rounded-xl bg-neutral-100 px-4 py-3 text-sm text-neutral-500">
+        <p className="rounded-2xl border border-edge bg-card px-4 py-3 text-sm text-ink-2">
           Erinnerungen konnten nicht eingerichtet werden.
         </p>
       )
@@ -81,7 +81,7 @@ export default function NotificationSetup() {
           type="button"
           onClick={enable}
           disabled={state === 'subscribing'}
-          className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 disabled:opacity-60"
+          className="w-full rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition-all hover:bg-accent/20 active:scale-[0.97] disabled:opacity-60"
         >
           {state === 'subscribing' ? 'Wird eingerichtet …' : 'Erinnerungen aktivieren (7:00 & 21:30)'}
         </button>

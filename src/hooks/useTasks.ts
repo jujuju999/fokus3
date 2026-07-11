@@ -115,10 +115,10 @@ export function useTasks() {
   )
 
   const addTask = useCallback(
-    (title: string) => {
+    (title: string, estimatedMinutes: number | null = null) => {
       const trimmed = title.trim()
       if (!trimmed) return
-      const task = createTask(trimmed)
+      const task = createTask(trimmed, estimatedMinutes)
       void mutate(
         (prev) => [task, ...prev],
         () => dbInsertTask(task),

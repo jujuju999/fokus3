@@ -4,9 +4,14 @@ import {
   dbDeleteAppointment,
   dbInsertAppointment,
   dbUpdateAppointment,
+  dbUpsertException,
   fetchAppointments,
+  fetchExceptions,
   rowToAppointment,
+  rowToException,
   type Appointment,
+  type AppointmentException,
+  type AppointmentExceptionRow,
   type AppointmentRow,
 } from '../lib/appointments'
 
@@ -14,12 +19,15 @@ const TOAST_MS = 4000
 
 export function useAppointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [exceptions, setExceptions] = useState<AppointmentException[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
 
-  // Mirror for optimistic-rollback snapshots without stale closures.
+  // Mirrors for optimistic-rollback snapshots without stale closures.
   const appointmentsRef = useRef<Appointment[]>([])
   appointmentsRef.current = appointments
+  const exceptionsRef = useRef<AppointmentException[]>([])
+  exceptionsRef.current = exceptions
   const toastTimer = useRef<number | undefined>(undefined)
 
   const showToast = useCallback((message: string) => {
@@ -34,8 +42,11 @@ export function useAppointments() {
     let cancelled = false
     ;(async () => {
       try {
-        const data = await fetchAppointments()
-        if (!cancelled) setAppointments(data)
+        const [a, e] = await Promise.all([fetchAppointments(), fetchExceptions()])
+        if (!cancelled) {
+          setAppointments(a)
+          setExceptions(e)
+        }
       } catch {
         if (!cancelled) showToast('Termine konnten nicht geladen werden.')
       } finally {
@@ -47,8 +58,7 @@ export function useAppointments() {
     }
   }, [showToast])
 
-  // Realtime: keep a second open device in sync; idempotent against our own
-  // optimistic updates (same ids, full-row merge).
+  // Realtime for both tables; idempotent against our own optimistic updates.
   useEffect(() => {
     const supabase = getSupabase()
     const channel = supabase
@@ -79,6 +89,28 @@ export function useAppointments() {
         (payload) => {
           const { id } = payload.old as Pick<AppointmentRow, 'id'>
           setAppointments((prev) => prev.filter((a) => a.id !== id))
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointment_exceptions' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const { id } = payload.old as Pick<AppointmentExceptionRow, 'id'>
+            setExceptions((prev) => prev.filter((e) => e.id !== id))
+            return
+          }
+          const ex = rowToException(payload.new as AppointmentExceptionRow)
+          setExceptions((prev) => [
+            ...prev.filter(
+              (e) =>
+                !(
+                  e.appointmentId === ex.appointmentId &&
+                  e.exceptionDate === ex.exceptionDate
+                ),
+            ),
+            ex,
+          ])
         },
       )
       .subscribe()
@@ -132,5 +164,37 @@ export function useAppointments() {
     [mutate],
   )
 
-  return { appointments, loading, toast, addAppointment, updateAppointment, deleteAppointment }
+  /** "Nur diese Woche": optimistic upsert keyed on (appointmentId, date). */
+  const upsertException = useCallback(
+    (ex: Omit<AppointmentException, 'id'>) => {
+      const snapshot = exceptionsRef.current
+      setExceptions((prev) => [
+        ...prev.filter(
+          (e) =>
+            !(e.appointmentId === ex.appointmentId && e.exceptionDate === ex.exceptionDate),
+        ),
+        { ...ex, id: crypto.randomUUID() },
+      ])
+      void (async () => {
+        try {
+          await dbUpsertException(ex)
+        } catch {
+          setExceptions(snapshot)
+          showToast('Änderung fehlgeschlagen – bitte erneut versuchen.')
+        }
+      })()
+    },
+    [showToast],
+  )
+
+  return {
+    appointments,
+    exceptions,
+    loading,
+    toast,
+    addAppointment,
+    updateAppointment,
+    deleteAppointment,
+    upsertException,
+  }
 }

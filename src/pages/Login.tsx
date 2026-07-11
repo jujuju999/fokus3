@@ -32,10 +32,10 @@ export default function Login() {
   }
 
   return (
-    <div className="grid min-h-dvh place-items-center bg-neutral-50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h1 className="mb-1 text-xl font-bold text-neutral-900">Fokus3</h1>
-        <p className="mb-4 text-sm text-neutral-500">Melde dich an, um deine Aufgaben zu sehen.</p>
+    <div className="grid min-h-dvh place-items-center bg-base px-6">
+      <div className="w-full max-w-md rounded-2xl border border-edge bg-card p-6">
+        <h1 className="mb-1 text-[22px] font-bold text-ink">Fokus3</h1>
+        <p className="mb-4 text-sm text-ink-2">Melde dich an, um deine Aufgaben zu sehen.</p>
 
         <form
           onSubmit={(e) => {
@@ -53,7 +53,7 @@ export default function Login() {
             required
             autoFocus
             autoComplete="email"
-            className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-base outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            className="w-full rounded-xl border border-edge bg-base px-4 py-3 text-[15px] text-ink placeholder:text-ink-3 outline-none focus:border-accent/60"
           />
           <input
             type="password"
@@ -64,12 +64,12 @@ export default function Login() {
             required
             minLength={6}
             autoComplete="current-password"
-            className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-base outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            className="w-full rounded-xl border border-edge bg-base px-4 py-3 text-[15px] text-ink placeholder:text-ink-3 outline-none focus:border-accent/60"
           />
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
+            className="w-full rounded-xl bg-accent px-4 py-3 text-sm font-medium text-base transition-all hover:bg-accent/90 active:scale-[0.97] disabled:opacity-60"
           >
             {busy ? 'Bitte warten …' : 'Anmelden'}
           </button>
@@ -77,13 +77,13 @@ export default function Login() {
             type="button"
             disabled={busy}
             onClick={() => void run('signup')}
-            className="w-full rounded-xl px-4 py-2 text-sm text-neutral-500 transition-colors hover:bg-neutral-100 disabled:opacity-60"
+            className="w-full rounded-xl px-4 py-2 text-sm text-ink-2 transition-all hover:bg-edge/50 active:scale-[0.97] disabled:opacity-60"
           >
             Neues Konto erstellen
           </button>
         </form>
 
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-warn">{error}</p>}
       </div>
     </div>
   )

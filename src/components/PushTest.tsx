@@ -26,25 +26,25 @@ export default function PushTest() {
   }
 
   return (
-    <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-3">
-      <p className="mb-2 text-xs font-medium text-amber-700">Dev: Push sofort testen</p>
+    <div className="rounded-2xl border border-dashed border-warn/50 p-3">
+      <p className="mb-2 text-xs font-medium text-warn">Dev: Push sofort testen</p>
       <div className="flex gap-2">
         <button
           type="button"
           onClick={() => trigger('morning')}
-          className="flex-1 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-800 transition-colors hover:bg-amber-200"
+          className="flex-1 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn transition-all hover:bg-warn/20 active:scale-[0.97]"
         >
           Morgen-Push (7:00)
         </button>
         <button
           type="button"
           onClick={() => trigger('evening')}
-          className="flex-1 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-800 transition-colors hover:bg-amber-200"
+          className="flex-1 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn transition-all hover:bg-warn/20 active:scale-[0.97]"
         >
           Abend-Push (21:30)
         </button>
       </div>
-      {result && <p className="mt-2 text-xs text-amber-700">{result}</p>}
+      {result && <p className="mt-2 text-xs text-warn">{result}</p>}
     </div>
   )
 }
