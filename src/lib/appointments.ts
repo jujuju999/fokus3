@@ -1,10 +1,6 @@
 import { getSupabase } from './supabaseClient'
 import { todayISO } from './tasks'
-
-// Visible time scale of the week view: 06:00–24:00.
-export const DAY_START_MIN = 360
-export const DAY_END_MIN = 1440
-export const DAY_SPAN_MIN = DAY_END_MIN - DAY_START_MIN // 1080
+import type { WakeTime } from './wakeTimes'
 
 export const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const
 
@@ -17,13 +13,33 @@ export interface Appointment {
   weekday: number | null
   /** ISO date (yyyy-mm-dd); only set for one-off appointments. */
   date: string | null
-  /** Minutes since midnight, within [DAY_START_MIN, DAY_END_MIN]. */
+  /** Minutes since midnight. */
   startMin: number
   endMin: number
   createdAt: string
 }
 
-/** Row shape of public.appointments (see 0003_appointments.sql). */
+/** "Nur diese Woche" edit/delete of a recurring appointment. */
+export interface AppointmentException {
+  id: string
+  appointmentId: string
+  exceptionDate: string
+  deleted: boolean
+  newTitle: string | null
+  newStartMin: number | null
+  newEndMin: number | null
+}
+
+/** One rendered block in a day column: base appointment + applied exception. */
+export interface AppointmentOccurrence {
+  base: Appointment
+  dateISO: string
+  title: string
+  startMin: number
+  endMin: number
+  isException: boolean
+}
+
 export interface AppointmentRow {
   id: string
   title: string
@@ -33,6 +49,16 @@ export interface AppointmentRow {
   start_min: number
   end_min: number
   created_at: string
+}
+
+export interface AppointmentExceptionRow {
+  id: string
+  appointment_id: string
+  exception_date: string
+  deleted: boolean
+  new_title: string | null
+  new_start_min: number | null
+  new_end_min: number | null
 }
 
 export function rowToAppointment(row: AppointmentRow): Appointment {
@@ -48,16 +74,15 @@ export function rowToAppointment(row: AppointmentRow): Appointment {
   }
 }
 
-function appointmentToRow(a: Appointment): AppointmentRow {
+export function rowToException(row: AppointmentExceptionRow): AppointmentException {
   return {
-    id: a.id,
-    title: a.title,
-    recurring: a.recurring,
-    weekday: a.weekday,
-    date: a.date,
-    start_min: a.startMin,
-    end_min: a.endMin,
-    created_at: a.createdAt,
+    id: row.id,
+    appointmentId: row.appointment_id,
+    exceptionDate: row.exception_date,
+    deleted: row.deleted,
+    newTitle: row.new_title,
+    newStartMin: row.new_start_min,
+    newEndMin: row.new_end_min,
   }
 }
 
@@ -84,26 +109,48 @@ export function currentWeekDates(): string[] {
   })
 }
 
-/** Appointments visible in one day column: weekly ones for the weekday plus one-offs on that date. */
-export function appointmentsForDay(
+/**
+ * Blocks visible in one day column: weekly appointments for the weekday
+ * (with their "nur diese Woche" exception applied, which may also hide
+ * them) plus one-offs on that date.
+ */
+export function occurrencesForDay(
   appointments: Appointment[],
+  exceptions: AppointmentException[],
   weekdayIdx: number,
   dateISO: string,
-): Appointment[] {
-  return appointments
-    .filter((a) => (a.recurring ? a.weekday === weekdayIdx : a.date === dateISO))
-    .sort((a, b) => a.startMin - b.startMin)
+): AppointmentOccurrence[] {
+  const result: AppointmentOccurrence[] = []
+  for (const a of appointments) {
+    if (a.recurring ? a.weekday !== weekdayIdx : a.date !== dateISO) continue
+    const ex = a.recurring
+      ? exceptions.find((e) => e.appointmentId === a.id && e.exceptionDate === dateISO)
+      : undefined
+    if (ex?.deleted) continue
+    result.push({
+      base: a,
+      dateISO,
+      title: ex?.newTitle ?? a.title,
+      startMin: ex?.newStartMin ?? a.startMin,
+      endMin: ex?.newEndMin ?? a.endMin,
+      isException: !!ex,
+    })
+  }
+  return result.sort((a, b) => a.startMin - b.startMin)
 }
 
 /**
- * Free minutes on the 18h scale. Overlapping appointments are merged first so
- * double-booked time is not subtracted twice.
+ * Free minutes inside the day's waking window: window length minus the
+ * merged (overlap-free) appointment time, clamped to the window.
  */
-export function freeMinutes(dayAppointments: Appointment[]): number {
-  const sorted = dayAppointments
-    .map((a) => ({
-      start: Math.max(a.startMin, DAY_START_MIN),
-      end: Math.min(a.endMin, DAY_END_MIN),
+export function freeMinutes(
+  occurrences: Array<{ startMin: number; endMin: number }>,
+  window: Pick<WakeTime, 'startMin' | 'endMin'>,
+): number {
+  const sorted = occurrences
+    .map((o) => ({
+      start: Math.max(o.startMin, window.startMin),
+      end: Math.min(o.endMin, window.endMin),
     }))
     .filter((iv) => iv.end > iv.start)
     .sort((a, b) => a.start - b.start)
@@ -119,13 +166,13 @@ export function freeMinutes(dayAppointments: Appointment[]): number {
       currentEnd = iv.end
     }
   }
-  return DAY_SPAN_MIN - busy
+  return window.endMin - window.startMin - busy
 }
 
-/** "10,5 h" — German decimal comma, halves only. */
+/** "4h" / "3,5h" — German decimal comma, halves only. */
 export function formatHours(minutes: number): string {
   const halves = Math.round(minutes / 30) / 2
-  return `${halves.toLocaleString('de-DE')} h`
+  return `${halves.toLocaleString('de-DE')}h`
 }
 
 export function minutesToTime(min: number): string {
@@ -152,18 +199,62 @@ export async function fetchAppointments(): Promise<Appointment[]> {
   return (data as AppointmentRow[]).map(rowToAppointment)
 }
 
+export async function fetchExceptions(): Promise<AppointmentException[]> {
+  const { data, error } = await getSupabase().from('appointment_exceptions').select('*')
+  if (error) throw new Error(error.message)
+  return (data as AppointmentExceptionRow[]).map(rowToException)
+}
+
 export async function dbInsertAppointment(a: Appointment): Promise<void> {
-  const { error } = await getSupabase().from('appointments').insert(appointmentToRow(a))
+  const { error } = await getSupabase().from('appointments').insert({
+    id: a.id,
+    title: a.title,
+    recurring: a.recurring,
+    weekday: a.weekday,
+    date: a.date,
+    start_min: a.startMin,
+    end_min: a.endMin,
+    created_at: a.createdAt,
+  })
   if (error) throw new Error(error.message)
 }
 
 export async function dbUpdateAppointment(a: Appointment): Promise<void> {
-  const { id, ...row } = appointmentToRow(a)
-  const { error } = await getSupabase().from('appointments').update(row).eq('id', id)
+  const { error } = await getSupabase()
+    .from('appointments')
+    .update({
+      title: a.title,
+      recurring: a.recurring,
+      weekday: a.weekday,
+      date: a.date,
+      start_min: a.startMin,
+      end_min: a.endMin,
+    })
+    .eq('id', a.id)
   if (error) throw new Error(error.message)
 }
 
 export async function dbDeleteAppointment(id: string): Promise<void> {
   const { error } = await getSupabase().from('appointments').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** Upsert keyed on (appointment_id, exception_date) — one exception per week. */
+export async function dbUpsertException(
+  ex: Omit<AppointmentException, 'id'>,
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from('appointment_exceptions')
+    .upsert(
+      {
+        appointment_id: ex.appointmentId,
+        exception_date: ex.exceptionDate,
+        deleted: ex.deleted,
+        new_title: ex.newTitle,
+        new_start_min: ex.newStartMin,
+        new_end_min: ex.newEndMin,
+      },
+      { onConflict: 'appointment_id,exception_date' },
+    )
   if (error) throw new Error(error.message)
 }

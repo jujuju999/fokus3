@@ -1,96 +1,208 @@
 import { useState } from 'react'
 import { useAppointments } from '../hooks/useAppointments'
+import { useWakeTimes } from '../hooks/useWakeTimes'
 import {
-  DAY_END_MIN,
   WEEKDAY_LABELS,
-  appointmentsForDay,
   currentWeekDates,
+  occurrencesForDay,
   todayISO,
   type Appointment,
+  type AppointmentOccurrence,
 } from '../lib/appointments'
+import { DEFAULT_WAKE_TIMES } from '../lib/wakeTimes'
 import WeekDayColumn from '../components/WeekDayColumn'
-import AppointmentModal from '../components/AppointmentModal'
+import WakeSetup from '../components/WakeSetup'
+import AppointmentModal, { type ModalDraft } from '../components/AppointmentModal'
 import Toast from '../components/Toast'
 
 interface ModalState {
-  draft: Appointment
   isNew: boolean
+  dateISO: string
+  weekdayIdx: number
+  /** Base appointment when editing; null for a new one. */
+  base: Appointment | null
+  draft: ModalDraft
 }
 
 export default function Week() {
-  const { appointments, loading, toast, addAppointment, updateAppointment, deleteAppointment } =
-    useAppointments()
+  const {
+    appointments,
+    exceptions,
+    loading,
+    toast,
+    addAppointment,
+    updateAppointment,
+    deleteAppointment,
+    upsertException,
+  } = useAppointments()
+  const wake = useWakeTimes()
   const [modal, setModal] = useState<ModalState | null>(null)
+  const [editWake, setEditWake] = useState(false)
 
   const weekDates = currentWeekDates()
   const today = todayISO()
 
-  function openNew(weekdayIdx: number, startMin: number) {
+  if (wake.loading || loading) {
+    return <p className="pt-10 text-center text-sm text-ink-3">Lädt …</p>
+  }
+
+  // First run: waking hours before anything else — they define the bars.
+  if (wake.needsSetup || editWake) {
+    return (
+      <main className="mx-auto max-w-md px-6 pb-16 pt-6">
+        <WakeSetup
+          initial={wake.wakeTimes?.length ? wake.wakeTimes : DEFAULT_WAKE_TIMES}
+          isFirstRun={wake.needsSetup}
+          onSave={async (times) => {
+            const ok = await wake.save(times)
+            if (ok) setEditWake(false)
+            return ok
+          }}
+          onCancel={wake.needsSetup ? undefined : () => setEditWake(false)}
+        />
+      </main>
+    )
+  }
+
+  function openNew(weekdayIdx: number, startMin?: number) {
+    const win = wake.windows.get(weekdayIdx)!
+    const start =
+      startMin ?? Math.min(Math.max(9 * 60, win.startMin), win.endMin - 60)
     setModal({
       isNew: true,
+      dateISO: weekDates[weekdayIdx],
+      weekdayIdx,
+      base: null,
       draft: {
-        id: crypto.randomUUID(),
         title: '',
+        weekdayIdx,
+        startMin: start,
+        endMin: Math.min(start + 60, win.endMin),
         recurring: false,
-        weekday: null,
-        date: weekDates[weekdayIdx],
-        startMin,
-        endMin: Math.min(startMin + 60, DAY_END_MIN),
-        createdAt: new Date().toISOString(),
       },
     })
   }
 
-  function handleSave(a: Appointment) {
-    if (modal?.isNew) addAppointment(a)
-    else updateAppointment(a)
+  function openEdit(occ: AppointmentOccurrence, weekdayIdx: number) {
+    setModal({
+      isNew: false,
+      dateISO: occ.dateISO,
+      weekdayIdx,
+      base: occ.base,
+      draft: {
+        title: occ.title,
+        weekdayIdx,
+        startMin: occ.startMin,
+        endMin: occ.endMin,
+        recurring: occ.base.recurring,
+      },
+    })
+  }
+
+  function handleSaveAll(d: ModalDraft) {
+    if (!modal) return
+    if (modal.isNew) {
+      addAppointment({
+        id: crypto.randomUUID(),
+        title: d.title,
+        recurring: d.recurring,
+        weekday: d.recurring ? d.weekdayIdx : null,
+        date: d.recurring ? null : weekDates[d.weekdayIdx],
+        startMin: d.startMin,
+        endMin: d.endMin,
+        createdAt: new Date().toISOString(),
+      })
+    } else if (modal.base) {
+      updateAppointment({
+        ...modal.base,
+        title: d.title,
+        // one-offs may move to another weekday; series keep their day
+        weekday: modal.base.recurring ? modal.base.weekday : null,
+        date: modal.base.recurring ? null : weekDates[d.weekdayIdx],
+        startMin: d.startMin,
+        endMin: d.endMin,
+      })
+    }
     setModal(null)
   }
 
-  function handleDelete(id: string) {
-    deleteAppointment(id)
+  function handleSaveWeek(d: ModalDraft) {
+    if (!modal?.base) return
+    upsertException({
+      appointmentId: modal.base.id,
+      exceptionDate: modal.dateISO,
+      deleted: false,
+      newTitle: d.title,
+      newStartMin: d.startMin,
+      newEndMin: d.endMin,
+    })
+    setModal(null)
+  }
+
+  function handleDeleteAll() {
+    if (modal?.base) deleteAppointment(modal.base.id)
+    setModal(null)
+  }
+
+  function handleDeleteWeek() {
+    if (!modal?.base) return
+    upsertException({
+      appointmentId: modal.base.id,
+      exceptionDate: modal.dateISO,
+      deleted: true,
+      newTitle: null,
+      newStartMin: null,
+      newEndMin: null,
+    })
     setModal(null)
   }
 
   return (
-    <div className="min-h-dvh bg-neutral-50">
-      <main className="mx-auto flex max-w-md flex-col gap-4 px-3 pb-24 pt-8">
-        <header className="px-1">
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Woche</h1>
-          <p className="text-sm text-neutral-400">6:00 – 24:00 · Tippen für neuen Termin</p>
-        </header>
+    <main className="mx-auto flex max-w-md flex-col gap-5 px-6 pb-16 pt-6">
+      <header className="flex items-baseline justify-between px-1">
+        <div>
+          <h1 className="text-[32px] font-bold leading-tight tracking-tight text-ink">Woche</h1>
+          <p className="text-sm text-ink-3">Tippen für neuen Termin</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setEditWake(true)}
+          className="text-xs text-ink-3 transition-colors hover:text-ink-2"
+        >
+          Wachzeiten
+        </button>
+      </header>
 
-        {loading ? (
-          <p className="text-center text-sm text-neutral-400">Lädt …</p>
-        ) : (
-          <div className="grid grid-cols-7 gap-1">
-            {weekDates.map((dateISO, idx) => (
-              <WeekDayColumn
-                key={dateISO}
-                label={WEEKDAY_LABELS[idx]}
-                dateISO={dateISO}
-                isToday={dateISO === today}
-                appointments={appointmentsForDay(appointments, idx, dateISO)}
-                onTapEmpty={(startMin) => openNew(idx, startMin)}
-                onTapAppointment={(a) => setModal({ draft: a, isNew: false })}
-              />
-            ))}
-          </div>
-        )}
-      </main>
+      <div className="grid grid-cols-7 gap-1">
+        {weekDates.map((dateISO, idx) => (
+          <WeekDayColumn
+            key={dateISO}
+            label={WEEKDAY_LABELS[idx]}
+            dateISO={dateISO}
+            isToday={dateISO === today}
+            window={wake.windows.get(idx)!}
+            occurrences={occurrencesForDay(appointments, exceptions, idx, dateISO)}
+            onTapEmpty={(startMin) => openNew(idx, startMin)}
+            onTapOccurrence={(occ) => openEdit(occ, idx)}
+            onAdd={() => openNew(idx)}
+          />
+        ))}
+      </div>
 
       {modal && (
         <AppointmentModal
           draft={modal.draft}
           isNew={modal.isNew}
-          weekDates={weekDates}
-          onSave={handleSave}
-          onDelete={handleDelete}
+          isRecurringOccurrence={!modal.isNew && !!modal.base?.recurring}
+          onSaveAll={handleSaveAll}
+          onSaveWeek={handleSaveWeek}
+          onDeleteAll={handleDeleteAll}
+          onDeleteWeek={handleDeleteWeek}
           onClose={() => setModal(null)}
         />
       )}
 
       <Toast message={toast} />
-    </div>
+    </main>
   )
 }

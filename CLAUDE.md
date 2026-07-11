@@ -14,9 +14,15 @@ V1 hat **genau drei Features**, sonst nichts:
 
 ## Scope V2 — „Woche" (Kapazitäts-Anzeiger)
 
-Vierter Baustein: Tab **„Woche"** — 7 Spalten Mo–So, Zeitbalken 6:00–24:00, Termine als Blöcke, darunter „X h frei". Zweck: beim Wählen der 3 Heute-Aufgaben sehen, wieviel Zeit realistisch frei ist. **Kein Kalender-Ersatz.**
+Bereich **„Woche"** — 7 Spalten Mo–So, Zeitbalken über die **Wachzeit des Wochentags** (Tabelle `wake_times`, Setup beim ersten Besuch, Default 7:00–23:00), Zeitskala links (Ticks alle 2 h), Termine als Blöcke, darunter „Xh frei" (Wachzeit minus gemergte Termin-Überschneidungen). Zweck: beim Wählen der 3 Heute-Aufgaben sehen, wieviel Zeit realistisch frei ist. **Kein Kalender-Ersatz.**
 
-Regeln: Termine haben nur Titel, Wochentag/Datum, Von/Bis und „wöchentlich wiederholen" (unbegrenzt, kein Enddatum). Einmalige hängen an konkretem Datum. Nur aktuelle Woche, kein Blättern. Keine Kategorien, Farben, Erinnerungen, Notizen, Vorschläge, Templates oder Auto-Einträge — das leere Raster ist Absicht.
+Regeln: Termine haben nur Titel, Wochentag/Datum, Von/Bis und „wöchentlich wiederholen" (unbegrenzt, kein Enddatum). Serientermine lassen sich „Nur diese Woche" ändern/löschen (Tabelle `appointment_exceptions`) oder „Alle zukünftigen". Einmalige hängen an konkretem Datum. Nur aktuelle Woche, kein Blättern. Wachzeiten nur innerhalb eines Kalendertags (kein „bis 1:00"). Keine Kategorien, Farben, Erinnerungen, Notizen, Vorschläge, Templates oder Auto-Einträge — das leere Raster ist Absicht.
+
+Aufgaben haben optional `estimated_minutes` (Chips beim Erfassen: 15 min–4 h). Übersteigt die geplante Heute-Dauer die freie Zeit heute → **Warn-Toast, niemals blockieren** (einziges hartes Limit bleibt der 3er-Cap). Neue Ideen landen in `IDEEN.md`, nicht im Code.
+
+## Design (ADHS-optimiert)
+
+Ein Akzent, viel Ruhe, Dopamin an den richtigen Stellen. Tokens in `src/index.css` (`@theme`): dunkle Basis (`base`/`card`/`edge` #0A0A0B/#17171A/#26262B), Text `ink`/`ink-2`/`ink-3`, **ein** Akzent `accent` #FF6A3D (aktiv, Progress, heutiger Tag, erledigt — auch für Erfolg, kein separates Grün), `warn` #E8A54B nur für die Kapazitäts-Warnung. Fonts: Inter Variable (Body 15px), **Space Grotesk** (`font-metric`) für Zahlen/Metriken. Hierarchie H1 32/H2 22/Body 15. Radii: 16px Karten, 12px Buttons. Schatten nur auf Modalen. Navigation: Segmented Control oben (Heute/Woche/Inbox). Micro-Interaktionen via Framer Motion (Feder: stiffness 300, damping 25), Buttons `active:scale-[0.97]`, Progress-Ring mit „Fokus komplett."-Overlay bei 3/3, rotierende Micro-Copy im leeren Heute. **Nicht erlaubt:** Streaks, Punkte, Konfetti, Sounds, mehrfarbige Kategorien.
 
 Getroffene Produktentscheidungen:
 - Multi-User mit Supabase Auth (E-Mail + Passwort; Magic Link/OTP scheiterte an iOS-PWA-Speichertrennung bzw. SMTP-Pflicht für Template-Anpassung), RLS pro Nutzer.
@@ -40,16 +46,17 @@ fokus3/
 ├─ vite.config.ts                      # base-Pfad + vite-plugin-pwa (injectManifest)
 ├─ public/icons/                       # 192, 512, maskable, apple-touch-icon
 ├─ src/
-│  ├─ main.tsx · App.tsx (Tab-State) · index.css
+│  ├─ main.tsx · App.tsx (Tab-State + Auth-Gate) · index.css (@theme Design-Tokens)
 │  ├─ sw.ts                            # Service Worker (Push-Empfang)
-│  ├─ lib/                             # supabaseClient.ts · push.ts · tasks.ts · appointments.ts
-│  ├─ hooks/                           # useTasks.ts · useAppointments.ts
-│  ├─ pages/                           # Home.tsx (Heute+Inbox) · Week.tsx
-│  └─ components/                      # QuickCapture · Inbox · TodayList · TaskItem · NotificationSetup
-│                                      # TabBar · WeekDayColumn · AppointmentModal · Toast · PushTest
+│  ├─ lib/                             # supabaseClient · auth · push · tasks · appointments · wakeTimes
+│  ├─ hooks/                           # useAuth · useTasks · useAppointments · useWakeTimes
+│  ├─ pages/                           # Home.tsx (Heute) · InboxPage.tsx · Week.tsx · Login.tsx
+│  └─ components/                      # SegmentedControl · ProgressRing · TodayList · Inbox · TaskItem
+│                                      # QuickCapture · WeekDayColumn · AppointmentModal · WakeSetup
+│                                      # NotificationSetup · PushTest · Toast · SetupNotice
 └─ supabase/
-   ├─ migrations/                      # 0001_schema · 0002_push · 0003_appointments (append-only)
-   └─ functions/send-reminders/        # Reset + Push-Versand, DST-aware
+   ├─ migrations/                      # 0001…0006 (append-only, niemals alte editieren)
+   └─ functions/send-reminders/        # Reset + Push-Versand pro Nutzer, DST-aware
 ```
 
 Neue Dateien folgen dieser Struktur; keine zusätzlichen Top-Level-Ordner ohne guten Grund.

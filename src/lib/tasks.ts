@@ -10,6 +10,8 @@ export interface Task {
   status: TaskStatus
   /** ISO date (yyyy-mm-dd) of the day the task was pulled onto "Heute". */
   plannedDate: string | null
+  /** Optional duration estimate for the capacity warning (never blocks). */
+  estimatedMinutes: number | null
   createdAt: string
   completedAt: string | null
 }
@@ -20,6 +22,7 @@ export interface TaskRow {
   title: string
   status: TaskStatus
   planned_date: string | null
+  estimated_minutes: number | null
   created_at: string
   completed_at: string | null
 }
@@ -30,9 +33,15 @@ export function rowToTask(row: TaskRow): Task {
     title: row.title,
     status: row.status,
     plannedDate: row.planned_date,
+    estimatedMinutes: row.estimated_minutes,
     createdAt: row.created_at,
     completedAt: row.completed_at,
   }
+}
+
+/** "15 min" / "1 h" / "2 h" for the estimate chip on a task. */
+export function formatEstimate(minutes: number): string {
+  return minutes < 60 ? `${minutes} min` : `${minutes / 60} h`
 }
 
 /** Local calendar date (not UTC) — the day boundary the user actually experiences. */
@@ -44,12 +53,13 @@ export function todayISO(): string {
 }
 
 /** Client-side task for optimistic inserts; the id is reused for the DB row. */
-export function createTask(title: string): Task {
+export function createTask(title: string, estimatedMinutes: number | null = null): Task {
   return {
     id: crypto.randomUUID(),
     title,
     status: 'inbox',
     plannedDate: null,
+    estimatedMinutes,
     createdAt: new Date().toISOString(),
     completedAt: null,
   }
@@ -83,6 +93,7 @@ export async function dbInsertTask(task: Task): Promise<void> {
     title: task.title,
     status: task.status,
     planned_date: task.plannedDate,
+    estimated_minutes: task.estimatedMinutes,
     created_at: task.createdAt,
     completed_at: task.completedAt,
   })

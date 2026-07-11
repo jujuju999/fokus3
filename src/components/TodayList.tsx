@@ -1,3 +1,4 @@
+import { AnimatePresence } from 'framer-motion'
 import { TODAY_LIMIT, type Task } from '../lib/tasks'
 import TaskItem from './TaskItem'
 
@@ -20,67 +21,77 @@ export default function TodayList({
 }: Props) {
   const freeSlots = Math.max(0, TODAY_LIMIT - usedSlots)
 
+  function complete(id: string) {
+    // Haptic tick on supporting devices (iOS Safari ignores it — harmless).
+    navigator.vibrate?.(10)
+    onComplete(id)
+  }
+
   return (
     <section aria-labelledby="today-heading">
-      <div className="mb-2 flex items-baseline justify-between">
-        <h2 id="today-heading" className="text-lg font-semibold text-neutral-900">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 id="today-heading" className="text-[22px] font-semibold text-ink">
           Heute
         </h2>
-        <span className="text-sm font-medium tabular-nums text-neutral-500">
+        <span className="font-metric text-sm font-bold tabular-nums text-ink-2">
           {usedSlots}/{TODAY_LIMIT}
         </span>
       </div>
 
-      <ul className="space-y-2">
-        {openTasks.map((task) => (
-          <TaskItem
-            key={task.id}
-            title={task.title}
-            actions={
-              <>
+      <ul className="space-y-4">
+        <AnimatePresence initial={false}>
+          {openTasks.map((task) => (
+            <TaskItem
+              key={task.id}
+              title={task.title}
+              estimatedMinutes={task.estimatedMinutes}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => complete(task.id)}
+                    aria-label={`„${task.title}“ als erledigt markieren`}
+                    className="grid h-9 w-9 place-items-center rounded-xl border border-edge text-ink-3 transition-all hover:border-accent/50 hover:text-accent active:scale-[0.97]"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onMoveToInbox(task.id)}
+                    aria-label={`„${task.title}“ zurück in die Inbox`}
+                    className="grid h-9 w-9 place-items-center rounded-xl text-ink-3 transition-all hover:bg-edge/50 hover:text-ink-2 active:scale-[0.97]"
+                  >
+                    ↩
+                  </button>
+                </>
+              }
+            />
+          ))}
+
+          {doneTasks.map((task) => (
+            <TaskItem
+              key={task.id}
+              title={task.title}
+              estimatedMinutes={task.estimatedMinutes}
+              done
+              actions={
                 <button
                   type="button"
-                  onClick={() => onComplete(task.id)}
-                  aria-label={`„${task.title}“ als erledigt markieren`}
-                  className="grid h-9 w-9 place-items-center rounded-lg border border-neutral-200 text-neutral-400 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600"
+                  onClick={() => onUncomplete(task.id)}
+                  aria-label={`„${task.title}“ wieder öffnen`}
+                  className="grid h-9 w-9 place-items-center rounded-xl border border-accent/40 bg-accent/15 text-accent transition-all hover:bg-accent/25 active:scale-[0.97]"
                 >
                   ✓
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onMoveToInbox(task.id)}
-                  aria-label={`„${task.title}“ zurück in die Inbox`}
-                  className="grid h-9 w-9 place-items-center rounded-lg text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-500"
-                >
-                  ↩
-                </button>
-              </>
-            }
-          />
-        ))}
-
-        {doneTasks.map((task) => (
-          <TaskItem
-            key={task.id}
-            title={task.title}
-            done
-            actions={
-              <button
-                type="button"
-                onClick={() => onUncomplete(task.id)}
-                aria-label={`„${task.title}“ wieder öffnen`}
-                className="grid h-9 w-9 place-items-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition-colors hover:bg-emerald-100"
-              >
-                ✓
-              </button>
-            }
-          />
-        ))}
+              }
+            />
+          ))}
+        </AnimatePresence>
 
         {Array.from({ length: freeSlots }, (_, i) => (
           <li
             key={`free-${i}`}
-            className="grid h-[3.25rem] place-items-center rounded-xl border-2 border-dashed border-neutral-200 text-sm text-neutral-300"
+            className="grid h-[3.25rem] place-items-center rounded-2xl border-2 border-dashed border-edge text-sm text-ink-3"
           >
             Frei
           </li>
