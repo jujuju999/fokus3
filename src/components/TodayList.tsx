@@ -1,4 +1,5 @@
 import { AnimatePresence } from 'framer-motion'
+import type { ReactNode } from 'react'
 import { TODAY_LIMIT, type Task } from '../lib/tasks'
 import TaskItem from './TaskItem'
 
@@ -6,6 +7,8 @@ interface Props {
   openTasks: Task[]
   doneTasks: Task[]
   usedSlots: number
+  /** Schedule chip per open task (built by the Heute page). */
+  renderChip?: (task: Task) => ReactNode
   onComplete: (id: string) => void
   onUncomplete: (id: string) => void
   onMoveToInbox: (id: string) => void
@@ -15,6 +18,7 @@ export default function TodayList({
   openTasks,
   doneTasks,
   usedSlots,
+  renderChip,
   onComplete,
   onUncomplete,
   onMoveToInbox,
@@ -45,6 +49,7 @@ export default function TodayList({
               key={task.id}
               title={task.title}
               estimatedMinutes={task.estimatedMinutes}
+              chip={renderChip?.(task)}
               actions={
                 <>
                   <button

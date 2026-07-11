@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useAppointments } from '../hooks/useAppointments'
+import { useTasks } from '../hooks/useTasks'
 import { useWakeTimes } from '../hooks/useWakeTimes'
+import { dateToMinutes } from '../lib/scheduling'
+import type { TaskBlock } from '../components/WeekDayColumn'
 import {
   WEEKDAY_LABELS,
   currentWeekDates,
@@ -36,11 +39,27 @@ export default function Week() {
     upsertException,
   } = useAppointments()
   const wake = useWakeTimes()
+  const { tasks } = useTasks()
   const [modal, setModal] = useState<ModalState | null>(null)
   const [editWake, setEditWake] = useState(false)
 
   const weekDates = currentWeekDates()
   const today = todayISO()
+
+  // Scheduled tasks as secondary blocks — today only (auto-planning never
+  // schedules past days, and V2.5 plans nothing beyond today).
+  function taskBlocksFor(dateISO: string): TaskBlock[] {
+    if (dateISO !== today) return []
+    return tasks
+      .filter((t) => t.status === 'today' && t.scheduledStart && t.scheduledEnd)
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        startMin: dateToMinutes(t.scheduledStart!, today),
+        endMin: dateToMinutes(t.scheduledEnd!, today),
+        locked: t.scheduleLocked,
+      }))
+  }
 
   if (wake.loading || loading) {
     return <p className="pt-10 text-center text-sm text-ink-3">Lädt …</p>
@@ -66,8 +85,12 @@ export default function Week() {
 
   function openNew(weekdayIdx: number, startMin?: number) {
     const win = wake.windows.get(weekdayIdx)!
-    const start =
-      startMin ?? Math.min(Math.max(9 * 60, win.startMin), win.endMin - 60)
+    // appointments never cross 24:00, even when the wake window does
+    const dayEnd = Math.min(win.endMin <= win.startMin ? 1440 : win.endMin, 1440)
+    const start = Math.min(
+      startMin ?? Math.min(Math.max(9 * 60, win.startMin), dayEnd - 60),
+      dayEnd - 30,
+    )
     setModal({
       isNew: true,
       dateISO: weekDates[weekdayIdx],
@@ -77,7 +100,7 @@ export default function Week() {
         title: '',
         weekdayIdx,
         startMin: start,
-        endMin: Math.min(start + 60, win.endMin),
+        endMin: Math.min(start + 60, dayEnd),
         recurring: false,
       },
     })
@@ -182,6 +205,7 @@ export default function Week() {
             isToday={dateISO === today}
             window={wake.windows.get(idx)!}
             occurrences={occurrencesForDay(appointments, exceptions, idx, dateISO)}
+            taskBlocks={taskBlocksFor(dateISO)}
             onTapEmpty={(startMin) => openNew(idx, startMin)}
             onTapOccurrence={(occ) => openEdit(occ, idx)}
             onAdd={() => openNew(idx)}

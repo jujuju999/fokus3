@@ -103,11 +103,18 @@ Deno.serve(async (req) => {
   }
 
   // Morning batch doubles as day reset: stale "Heute" tasks (all users)
-  // return to the inbox.
+  // return to the inbox — scheduling fields are day-bound and cleared too.
   if (slot === 'morning' && !isTest) {
     await supabase
       .from('tasks')
-      .update({ status: 'inbox', planned_date: null })
+      .update({
+        status: 'inbox',
+        planned_date: null,
+        planned_at: null,
+        scheduled_start: null,
+        scheduled_end: null,
+        schedule_locked: false,
+      })
       .eq('status', 'today')
       .lt('planned_date', date)
   }

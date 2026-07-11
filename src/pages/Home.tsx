@@ -1,8 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useTasks } from '../hooks/useTasks'
+import { useAppointments } from '../hooks/useAppointments'
+import { useWakeTimes } from '../hooks/useWakeTimes'
+import type { Task } from '../lib/tasks'
+import {
+  minutesToTime,
+  occurrencesForDay,
+  todayISO,
+  weekdayIndex,
+} from '../lib/appointments'
+import {
+  TRANSITION_BUFFER_MIN,
+  computeFreeSlots,
+  dateToMinutes,
+  minutesToDate,
+  overlapsAny,
+  subtractBlocksPadded,
+} from '../lib/scheduling'
 import ProgressRing from '../components/ProgressRing'
 import TodayList from '../components/TodayList'
+import TaskScheduleSheet from '../components/TaskScheduleSheet'
 import NotificationSetup from '../components/NotificationSetup'
 import PushTest from '../components/PushTest'
 import Toast from '../components/Toast'
@@ -21,13 +39,24 @@ export default function Home() {
   const {
     loading,
     toast,
+    tasks,
     todayOpenTasks,
     todayDoneTasks,
     usedSlots,
     completeTask,
     uncompleteTask,
     moveToInbox,
+    setTaskSchedule,
   } = useTasks()
+  const { appointments, exceptions } = useAppointments()
+  const { windows } = useWakeTimes()
+
+  const [sheetTaskId, setSheetTaskId] = useState<string | null>(null)
+  const [warn, setWarn] = useState<string | null>(null)
+  const warnTimer = useRef<number | undefined>(undefined)
+
+  const today = todayISO()
+  const weekday = weekdayIndex(new Date())
 
   const microCopy = useMemo(
     () => MICRO_COPY[Math.floor(Math.random() * MICRO_COPY.length)],
@@ -50,6 +79,103 @@ export default function Home() {
     prevDone.current = doneCount
   }, [doneCount])
 
+  function showWarn(message: string) {
+    setWarn(message)
+    window.clearTimeout(warnTimer.current)
+    warnTimer.current = window.setTimeout(() => setWarn(null), 4000)
+  }
+
+  // Scheduled first (by start time), unplanned after — the day reads top-down.
+  const sortedOpen = useMemo(() => {
+    return [...todayOpenTasks].sort((a, b) => {
+      if (a.scheduledStart && b.scheduledStart)
+        return a.scheduledStart.localeCompare(b.scheduledStart)
+      if (a.scheduledStart) return -1
+      if (b.scheduledStart) return 1
+      return (a.plannedAt ?? a.createdAt).localeCompare(b.plannedAt ?? b.createdAt)
+    })
+  }, [todayOpenTasks])
+
+  const occs = occurrencesForDay(appointments, exceptions, weekday, today)
+
+  /** Free slots left today, minus locked task slots — for the "too short" toast. */
+  function remainingFreeSlots() {
+    const wake = windows.get(weekday)
+    if (!wake) return []
+    const lockedSlots = tasks
+      .filter((t) => t.status === 'today' && t.scheduleLocked && t.scheduledStart && t.scheduledEnd)
+      .map((t) => ({
+        startMin: dateToMinutes(t.scheduledStart!, today),
+        endMin: dateToMinutes(t.scheduledEnd!, today),
+      }))
+    return subtractBlocksPadded(computeFreeSlots(occs, wake), lockedSlots, TRANSITION_BUFFER_MIN)
+  }
+
+  function handleNoSlotTap() {
+    const lengths = remainingFreeSlots().map((s) => `${s.endMin - s.startMin} min`)
+    showWarn(
+      lengths.length
+        ? `Deine freien Slots heute sind zu kurz (${lengths.join(', ')}). Dauer anpassen oder Termine prüfen.`
+        : 'Heute ist kein freier Slot mehr übrig. Termine prüfen oder morgen neu wählen.',
+    )
+  }
+
+  function renderChip(task: Task) {
+    if (!task.estimatedMinutes) return undefined // "Wann-du-willst"-Aufgabe
+    if (task.scheduledStart && task.scheduledEnd) {
+      const s = dateToMinutes(task.scheduledStart, today)
+      const e = dateToMinutes(task.scheduledEnd, today)
+      return (
+        <button
+          type="button"
+          onClick={() => setSheetTaskId(task.id)}
+          aria-label={`Zeit-Slot von „${task.title}“ bearbeiten`}
+          className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent transition-all hover:bg-accent/20 active:scale-[0.97]"
+        >
+          {task.scheduleLocked ? '🔒' : '✦ Auto'} · {minutesToTime(s % 1440)}–{minutesToTime(e % 1440)}
+        </button>
+      )
+    }
+    if (task.scheduleLocked) {
+      // manually unscheduled ("Entfernen") — opted out of auto-planning
+      return (
+        <button
+          type="button"
+          onClick={() => setSheetTaskId(task.id)}
+          className="rounded-full border border-edge px-2.5 py-0.5 text-xs text-ink-3 transition-all hover:text-ink-2 active:scale-[0.97]"
+        >
+          ohne Zeit
+        </button>
+      )
+    }
+    // wants a slot, none fits
+    return (
+      <button
+        type="button"
+        onClick={handleNoSlotTap}
+        className="rounded-full border border-warn/40 bg-warn/10 px-2.5 py-0.5 text-xs font-medium text-warn transition-all hover:bg-warn/20 active:scale-[0.97]"
+      >
+        Keine Zeit heute
+      </button>
+    )
+  }
+
+  const sheetTask = sheetTaskId ? tasks.find((t) => t.id === sheetTaskId) : null
+
+  function handleFix(startMin: number) {
+    if (!sheetTask?.estimatedMinutes) return
+    const endMin = startMin + sheetTask.estimatedMinutes
+    if (overlapsAny({ startMin, endMin }, occs)) {
+      showWarn('Dieser Slot überschneidet einen Termin.')
+    }
+    setTaskSchedule(sheetTask.id, {
+      start: minutesToDate(today, startMin).toISOString(),
+      end: minutesToDate(today, endMin).toISOString(),
+      locked: true,
+    })
+    setSheetTaskId(null)
+  }
+
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 px-6 pb-16 pt-6">
       {loading ? (
@@ -63,9 +189,10 @@ export default function Home() {
           )}
 
           <TodayList
-            openTasks={todayOpenTasks}
+            openTasks={sortedOpen}
             doneTasks={todayDoneTasks}
             usedSlots={usedSlots}
+            renderChip={renderChip}
             onComplete={completeTask}
             onUncomplete={uncompleteTask}
             onMoveToInbox={moveToInbox}
@@ -84,6 +211,33 @@ export default function Home() {
           Abmelden
         </button>
       </div>
+
+      {sheetTask && sheetTask.estimatedMinutes && (
+        <TaskScheduleSheet
+          taskTitle={sheetTask.title}
+          durationMinutes={sheetTask.estimatedMinutes}
+          initialStartMin={
+            sheetTask.scheduledStart ? dateToMinutes(sheetTask.scheduledStart, today) : null
+          }
+          hasSlot={!!sheetTask.scheduledStart}
+          locked={sheetTask.scheduleLocked}
+          onFix={handleFix}
+          onRelease={() => {
+            setTaskSchedule(sheetTask.id, {
+              start: sheetTask.scheduledStart,
+              end: sheetTask.scheduledEnd,
+              locked: false,
+            })
+            setSheetTaskId(null)
+          }}
+          onRemove={() => {
+            // locked=true with NULL times = opted out, auto-scheduler stays away
+            setTaskSchedule(sheetTask.id, { start: null, end: null, locked: true })
+            setSheetTaskId(null)
+          }}
+          onClose={() => setSheetTaskId(null)}
+        />
+      )}
 
       <AnimatePresence>
         {celebrate && (
@@ -107,6 +261,7 @@ export default function Home() {
       </AnimatePresence>
 
       <Toast message={toast} />
+      <Toast message={warn} variant="warn" />
     </main>
   )
 }

@@ -6,6 +6,8 @@ interface Props {
   title: string
   estimatedMinutes?: number | null
   done?: boolean
+  /** Schedule chip ("14:00–15:00" / "Keine Zeit heute") rendered under the title. */
+  chip?: ReactNode
   actions?: ReactNode
 }
 
@@ -14,7 +16,7 @@ interface Props {
  * when appearing, e.g. after pulling into "Heute"), shrink-and-fade exit
  * when checked off. Parents must wrap lists in <AnimatePresence>.
  */
-export default function TaskItem({ title, estimatedMinutes, done = false, actions }: Props) {
+export default function TaskItem({ title, estimatedMinutes, done = false, chip, actions }: Props) {
   return (
     <motion.li
       layout
@@ -24,17 +26,20 @@ export default function TaskItem({ title, estimatedMinutes, done = false, action
       transition={{ type: 'spring', stiffness: 300, damping: 25 }}
       className="flex items-center gap-3 rounded-2xl border border-edge bg-card px-4 py-3"
     >
-      <span
-        className={`min-w-0 flex-1 break-words text-[15px] ${
-          done ? 'text-accent/70 line-through' : 'text-ink'
-        }`}
-      >
-        {title}
-        {estimatedMinutes ? (
-          <span className="ml-2 whitespace-nowrap text-xs text-ink-3">
-            {formatEstimate(estimatedMinutes)}
-          </span>
-        ) : null}
+      <span className="min-w-0 flex-1">
+        <span
+          className={`break-words text-[15px] ${
+            done ? 'text-accent/70 line-through' : 'text-ink'
+          }`}
+        >
+          {title}
+          {estimatedMinutes ? (
+            <span className="ml-2 whitespace-nowrap text-xs text-ink-3">
+              {formatEstimate(estimatedMinutes)}
+            </span>
+          ) : null}
+        </span>
+        {chip && <span className="mt-1.5 block">{chip}</span>}
       </span>
       {actions && <span className="flex shrink-0 items-center gap-1">{actions}</span>}
     </motion.li>

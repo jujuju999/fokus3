@@ -34,11 +34,11 @@ export default function WakeSetup({ initial, isFirstRun, onSave, onCancel }: Pro
       startMin: timeToMinutes(r.start),
       endMin: timeToMinutes(r.end),
     }))
-    const invalid = times.find((t) => t.endMin <= t.startMin)
+    // end < start is allowed and means "past midnight" (e.g. Sa 9:00–1:00);
+    // only equal times are ambiguous.
+    const invalid = times.find((t) => t.endMin === t.startMin)
     if (invalid) {
-      setError(
-        `${WEEKDAY_LABELS[invalid.weekday]}: Ende muss nach dem Beginn liegen (gleicher Tag).`,
-      )
+      setError(`${WEEKDAY_LABELS[invalid.weekday]}: Beginn und Ende dürfen nicht gleich sein.`)
       return
     }
     setBusy(true)
@@ -54,7 +54,8 @@ export default function WakeSetup({ initial, isFirstRun, onSave, onCancel }: Pro
         {isFirstRun ? 'Deine Wachzeiten' : 'Wachzeiten'}
       </h2>
       <p className="mb-4 text-sm text-ink-2">
-        Der Wochenbalken zeigt nur diese Zeit – daraus entsteht „frei" pro Tag.
+        Der Wochenbalken zeigt nur diese Zeit – daraus entsteht „frei" pro Tag. Ende vor Beginn
+        heißt „bis nach Mitternacht" (z.&nbsp;B. 9:00–1:00).
       </p>
 
       <div className="space-y-2">

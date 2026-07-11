@@ -59,10 +59,11 @@ export function useAppointments() {
   }, [showToast])
 
   // Realtime for both tables; idempotent against our own optimistic updates.
+  // Unique channel name per hook instance — see the note in useTasks.
   useEffect(() => {
     const supabase = getSupabase()
     const channel = supabase
-      .channel('appointments-realtime')
+      .channel(`appointments-realtime-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'appointments' },

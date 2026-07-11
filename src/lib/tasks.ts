@@ -12,6 +12,16 @@ export interface Task {
   plannedDate: string | null
   /** Optional duration estimate for the capacity warning (never blocks). */
   estimatedMinutes: number | null
+  /** Auto-scheduled slot for today (only with estimate + status 'today'). */
+  scheduledStart: string | null
+  scheduledEnd: string | null
+  /**
+   * true = manually set/confirmed — the auto-scheduler never touches it.
+   * true with NULL times = manually unscheduled (opted out of planning).
+   */
+  scheduleLocked: boolean
+  /** When the task was pulled onto "Heute" — defines auto-planning order. */
+  plannedAt: string | null
   createdAt: string
   completedAt: string | null
 }
@@ -23,6 +33,10 @@ export interface TaskRow {
   status: TaskStatus
   planned_date: string | null
   estimated_minutes: number | null
+  scheduled_start: string | null
+  scheduled_end: string | null
+  schedule_locked: boolean
+  planned_at: string | null
   created_at: string
   completed_at: string | null
 }
@@ -34,6 +48,10 @@ export function rowToTask(row: TaskRow): Task {
     status: row.status,
     plannedDate: row.planned_date,
     estimatedMinutes: row.estimated_minutes,
+    scheduledStart: row.scheduled_start,
+    scheduledEnd: row.scheduled_end,
+    scheduleLocked: row.schedule_locked,
+    plannedAt: row.planned_at,
     createdAt: row.created_at,
     completedAt: row.completed_at,
   }
@@ -60,6 +78,10 @@ export function createTask(title: string, estimatedMinutes: number | null = null
     status: 'inbox',
     plannedDate: null,
     estimatedMinutes,
+    scheduledStart: null,
+    scheduledEnd: null,
+    scheduleLocked: false,
+    plannedAt: null,
     createdAt: new Date().toISOString(),
     completedAt: null,
   }
@@ -102,7 +124,18 @@ export async function dbInsertTask(task: Task): Promise<void> {
 
 export async function dbUpdateTask(
   id: string,
-  fields: Partial<Pick<TaskRow, 'status' | 'planned_date' | 'completed_at'>>,
+  fields: Partial<
+    Pick<
+      TaskRow,
+      | 'status'
+      | 'planned_date'
+      | 'completed_at'
+      | 'scheduled_start'
+      | 'scheduled_end'
+      | 'schedule_locked'
+      | 'planned_at'
+    >
+  >,
 ): Promise<void> {
   const { error } = await getSupabase().from('tasks').update(fields).eq('id', id)
   if (error) throw new Error(error.message)

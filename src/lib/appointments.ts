@@ -1,4 +1,5 @@
 import { getSupabase } from './supabaseClient'
+import { effectiveWindow } from './scheduling'
 import { todayISO } from './tasks'
 import type { WakeTime } from './wakeTimes'
 
@@ -142,15 +143,18 @@ export function occurrencesForDay(
 /**
  * Free minutes inside the day's waking window: window length minus the
  * merged (overlap-free) appointment time, clamped to the window.
+ * Windows may cross midnight (end <= start = "+1 day"); appointments
+ * never do, so the past-midnight tail is appointment-free by construction.
  */
 export function freeMinutes(
   occurrences: Array<{ startMin: number; endMin: number }>,
   window: Pick<WakeTime, 'startMin' | 'endMin'>,
 ): number {
+  const win = effectiveWindow(window)
   const sorted = occurrences
     .map((o) => ({
-      start: Math.max(o.startMin, window.startMin),
-      end: Math.min(o.endMin, window.endMin),
+      start: Math.max(o.startMin, win.startMin),
+      end: Math.min(o.endMin, Math.min(win.endMin, 1440)),
     }))
     .filter((iv) => iv.end > iv.start)
     .sort((a, b) => a.start - b.start)
@@ -166,7 +170,7 @@ export function freeMinutes(
       currentEnd = iv.end
     }
   }
-  return window.endMin - window.startMin - busy
+  return win.endMin - win.startMin - busy
 }
 
 /** "4h" / "3,5h" — German decimal comma, halves only. */
