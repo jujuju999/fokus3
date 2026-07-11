@@ -14,7 +14,12 @@ const TABS: Array<{ id: Tab; label: string }> = [
 /** Top segmented control — the one navigation element (spec: oben, Akzent für aktiv). */
 export default function SegmentedControl({ tab, onChange }: Props) {
   return (
-    <nav aria-label="Bereiche" className="mx-auto w-full max-w-md px-6 pt-4">
+    // safe-area padding: with black-translucent the app renders under the
+    // iOS status bar — without this, clock/battery overlap the control
+    <nav
+      aria-label="Bereiche"
+      className="mx-auto w-full max-w-md px-6 pt-[calc(1rem+env(safe-area-inset-top))]"
+    >
       <div className="flex rounded-xl border border-edge bg-card p-1">
         {TABS.map(({ id, label }) => (
           <button
